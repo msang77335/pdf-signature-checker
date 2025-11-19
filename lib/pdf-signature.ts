@@ -13,7 +13,7 @@ function extractSignature(pdfBuffer: Buffer) {
 
   const byteRangeMatch = pdfText.match(/ByteRange\s*\[\s*(\d+) (\d+) (\d+) (\d+)\s*\]/);
   if (!byteRangeMatch) {
-    throw new Error("Không tìm thấy ByteRange.");
+    throw new Error("File PDF này không có chữ ký số. Vui lòng kiểm tra lại file PDF có chữ ký.");
   }
 
   const byteRange = byteRangeMatch.slice(1).map(Number);
@@ -23,7 +23,7 @@ function extractSignature(pdfBuffer: Buffer) {
   const signedData = Buffer.concat([signed1, signed2]);
 
   const contentsMatch = pdfText.match(/Contents\s*<([0-9A-Fa-f]+)>/);
-  if (!contentsMatch) throw new Error("Không tìm thấy contents signature");
+  if (!contentsMatch) throw new Error("File PDF có chữ ký nhưng không thể đọc được nội dung chữ ký. File có thể bị hỏng.");
 
   const signatureHex = contentsMatch[1];
   const signature = Buffer.from(signatureHex, "hex");
@@ -64,25 +64,34 @@ function parseCertInfo(cert: forge.pki.Certificate): CertificateInfo {
 }
 
 export function checkPdfSignature(pdfBuffer: Buffer): CertificateInfo {
-  const { signature } = extractSignature(pdfBuffer);
+  try {
+    const { signature } = extractSignature(pdfBuffer);
 
-  // Remove trailing zeros (padding) from signature
-  let trimmedSignature = signature;
-  for (let i = signature.length - 1; i >= 0; i--) {
-    if (signature[i] !== 0) {
-      trimmedSignature = signature.slice(0, i + 1);
-      break;
+    // Remove trailing zeros (padding) from signature
+    let trimmedSignature = signature;
+    for (let i = signature.length - 1; i >= 0; i--) {
+      if (signature[i] !== 0) {
+        trimmedSignature = signature.slice(0, i + 1);
+        break;
+      }
     }
+
+    const p7 = forge.pkcs7.messageFromAsn1(
+      forge.asn1.fromDer(trimmedSignature.toString("binary"))
+    );
+
+    const cert = (p7 as any).certificates?.[0];
+    if (!cert) {
+      throw new Error("File PDF có chữ ký nhưng không thể đọc thông tin certificate. Chữ ký có thể không hợp lệ hoặc bị hỏng.");
+    }
+
+    return parseCertInfo(cert);
+  } catch (error) {
+    // If it's already our custom error message, re-throw it
+    if (error instanceof Error && error.message.includes('File PDF')) {
+      throw error;
+    }
+    // For other parsing errors, provide a generic message
+    throw new Error('Không thể phân tích chữ ký PDF. File có thể bị hỏng hoặc định dạng chữ ký không được hỗ trợ.');
   }
-
-  const p7 = forge.pkcs7.messageFromAsn1(
-    forge.asn1.fromDer(trimmedSignature.toString("binary"))
-  );
-
-  const cert = (p7 as any).certificates?.[0];
-  if (!cert) {
-    throw new Error("Không tìm thấy certificate trong signature");
-  }
-
-  return parseCertInfo(cert);
 }

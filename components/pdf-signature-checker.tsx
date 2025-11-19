@@ -69,7 +69,8 @@ export default function PDFSignatureChecker() {
       });
 
       if (!response.ok) {
-        throw new Error('Lỗi kiểm tra chữ ký');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Lỗi kiểm tra chữ ký');
       }
 
       const data = await response.json();
@@ -126,7 +127,7 @@ export default function PDFSignatureChecker() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold text-gray-900">PDF Signature Checker</h1>
