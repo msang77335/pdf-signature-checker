@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Upload, FileText, CheckCircle, XCircle, Calendar, Building, User } from 'lucide-react';
@@ -147,41 +145,41 @@ export default function PDFSignatureChecker() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="pdf-file">File PDF</Label>
-              <button
-                type="button"
-                className={`w-full relative border-2 border-dashed rounded-lg p-6 transition-colors ${
-                  dragActive
-                    ? 'border-blue-400 bg-blue-50'
-                    : 'border-gray-300 hover:border-gray-400'
-                } ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
-                onDrop={handleDrop}
-                onClick={() => !loading && document.getElementById('pdf-file')?.click()}
-                disabled={loading}
-              >
-                <Input
+              <span className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">File PDF</span>
+              <div className="relative">
+                <input
                   id="pdf-file"
                   type="file"
                   accept=".pdf"
                   onChange={handleFileChange}
                   disabled={loading}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
                 />
-                <div className="text-center">
-                  <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                  <div className="space-y-2">
-                    <p className="text-lg font-medium text-gray-900">
-                      {dragActive ? 'Thả file PDF vào đây' : 'Kéo thả file PDF vào đây'}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      hoặc <span className="text-blue-600 font-medium">chọn file</span> từ máy tính
-                    </p>
+                <label
+                  htmlFor="pdf-file"
+                  className={`block w-full border-2 border-dashed rounded-lg p-6 transition-colors ${
+                    dragActive
+                      ? 'border-blue-400 bg-blue-50'
+                      : 'border-gray-300 hover:border-gray-400'
+                  } ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                >
+                  <div className="text-center pointer-events-none">
+                    <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                    <div className="space-y-2">
+                      <p className="text-lg font-medium text-gray-900">
+                        {dragActive ? 'Thả file PDF vào đây' : 'Kéo thả file PDF vào đây'}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        hoặc <span className="text-blue-600 font-medium">chọn file</span> từ máy tính
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </button>
+                </label>
+              </div>
             </div>
 
             {file && (
