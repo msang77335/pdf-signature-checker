@@ -105,6 +105,28 @@ export default function PDFSignatureChecker() {
     return parsed;
   };
 
+  const getFieldLabel = (key: string) => {
+    const labels: Record<string, string> = {
+      'C': 'Quốc gia',
+      'ST': 'Tỉnh/Thành phố', 
+      'L': 'Địa phương',
+      'O': 'Tổ chức',
+      'OU': 'Đơn vị',
+      'CN': 'Tên đầy đủ',
+      'emailAddress': 'Email',
+      'E': 'Email',
+      'SERIALNUMBER': 'Số serial',
+      'GIVENNAME': 'Tên',
+      'SURNAME': 'Họ',
+      'TITLE': 'Chức vụ',
+      'STREET': 'Địa chỉ',
+      'POSTALCODE': 'Mã bưu điện',
+      'T': 'Chức danh',
+      'PC': 'Mã bưu điện'
+    };
+    return labels[key] || key;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -212,7 +234,7 @@ export default function PDFSignatureChecker() {
                   <div className="bg-gray-50 p-3 rounded-lg space-y-1">
                     {Object.entries(parseSubject(result.subject)).map(([key, value]) => (
                       <div key={key} className="flex gap-2 text-sm">
-                        <span className="font-medium min-w-8">{key}:</span>
+                        <span className="font-medium min-w-24">{getFieldLabel(key)}:</span>
                         <span className="text-gray-700">{value}</span>
                       </div>
                     ))}
@@ -227,7 +249,7 @@ export default function PDFSignatureChecker() {
                   <div className="bg-gray-50 p-3 rounded-lg space-y-1">
                     {Object.entries(parseSubject(result.issuer)).map(([key, value]) => (
                       <div key={key} className="flex gap-2 text-sm">
-                        <span className="font-medium min-w-8">{key}:</span>
+                        <span className="font-medium min-w-24">{getFieldLabel(key)}:</span>
                         <span className="text-gray-700">{value}</span>
                       </div>
                     ))}
