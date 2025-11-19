@@ -229,7 +229,7 @@ export default function PDFSignatureChecker() {
                     <User className="h-4 w-4" />
                     Thông tin người ký
                   </h4>
-                  <div className="bg-gray-50 p-3 rounded-lg space-y-1">
+                  <div className="bg-gray-50 p-3 rounded-lg space-y-2">
                     {Object.entries(parseSubject(result.subject)).map(([key, value]) => (
                       <div key={key} className="flex gap-2 text-sm">
                         <span className="font-medium min-w-24">{getFieldLabel(key)}:</span>
@@ -244,7 +244,7 @@ export default function PDFSignatureChecker() {
                     <Building className="h-4 w-4" />
                     Nhà phát hành (CA)
                   </h4>
-                  <div className="bg-gray-50 p-3 rounded-lg space-y-1">
+                  <div className="bg-gray-50 p-3 rounded-lg space-y-2">
                     {Object.entries(parseSubject(result.issuer)).map(([key, value]) => (
                       <div key={key} className="flex gap-2 text-sm">
                         <span className="font-medium min-w-24">{getFieldLabel(key)}:</span>
@@ -259,7 +259,7 @@ export default function PDFSignatureChecker() {
                     <Calendar className="h-4 w-4" />
                     Thời hạn hiệu lực
                   </h4>
-                  <div className="bg-gray-50 p-3 rounded-lg space-y-1">
+                  <div className="bg-gray-50 p-3 rounded-lg space-y-2">
                     <div className="flex gap-2 text-sm">
                       <span className="font-medium">Từ:</span>
                       <span className="text-gray-700">{formatDate(result.validFrom.toString())}</span>
