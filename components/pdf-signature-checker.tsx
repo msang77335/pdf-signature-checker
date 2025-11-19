@@ -15,15 +15,40 @@ export default function PDFSignatureChecker() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CertificateInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile && selectedFile.type === 'application/pdf') {
+  const validateAndSetFile = (selectedFile: File | null) => {
+    if (selectedFile?.type === 'application/pdf') {
       setFile(selectedFile);
       setResult(null);
       setError(null);
     } else {
       setError('Vui lòng chọn file PDF hợp lệ');
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    validateAndSetFile(selectedFile || null);
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files?.[0]) {
+      validateAndSetFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -71,12 +96,12 @@ export default function PDFSignatureChecker() {
   const parseSubject = (subject: string) => {
     const parts = subject.split(', ');
     const parsed: Record<string, string> = {};
-    parts.forEach(part => {
+    for (const part of parts) {
       const [key, value] = part.split('=');
       if (key && value) {
         parsed[key] = value;
       }
-    });
+    }
     return parsed;
   };
 
@@ -101,13 +126,40 @@ export default function PDFSignatureChecker() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="pdf-file">File PDF</Label>
-              <Input
-                id="pdf-file"
-                type="file"
-                accept=".pdf"
-                onChange={handleFileChange}
+              <button
+                type="button"
+                className={`w-full relative border-2 border-dashed rounded-lg p-6 transition-colors ${
+                  dragActive
+                    ? 'border-blue-400 bg-blue-50'
+                    : 'border-gray-300 hover:border-gray-400'
+                } ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+                onClick={() => !loading && document.getElementById('pdf-file')?.click()}
                 disabled={loading}
-              />
+              >
+                <Input
+                  id="pdf-file"
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileChange}
+                  disabled={loading}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+                <div className="text-center">
+                  <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                  <div className="space-y-2">
+                    <p className="text-lg font-medium text-gray-900">
+                      {dragActive ? 'Thả file PDF vào đây' : 'Kéo thả file PDF vào đây'}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      hoặc <span className="text-blue-600 font-medium">chọn file</span> từ máy tính
+                    </p>
+                  </div>
+                </div>
+              </button>
             </div>
 
             {file && (
