@@ -1,19 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Upload, FileText, CheckCircle, XCircle, Calendar, Building, User } from 'lucide-react';
-import { CertificateInfo } from '@/lib/pdf-signature';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Building, Calendar, CheckCircle, FileText, Upload, User, XCircle } from 'lucide-react';
+import { type CertInfo } from 'pdf-signature-reader';
+import { useState } from 'react';
+import * as iconv from 'iconv-lite';
 
 export default function PDFSignatureChecker() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<CertificateInfo | null>(null);
+  const [result, setResult] = useState<CertInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [openItems, setOpenItems] = useState<number[]>([]);
 
   const validateAndSetFile = (selectedFile: File | null) => {
     if (selectedFile?.type === 'application/pdf') {
@@ -74,7 +77,10 @@ export default function PDFSignatureChecker() {
       }
 
       const data = await response.json();
-      setResult(data);
+      console.log(data, 'data received from API');
+      // Handle nested array format from API: [[cert1, cert2, cert3]]
+      const certificates = Array.isArray(data) && Array.isArray(data[0]) ? data[0] : data;
+      setResult(certificates);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Có lỗi xảy ra');
     } finally {
@@ -92,38 +98,38 @@ export default function PDFSignatureChecker() {
     });
   };
 
-  const parseSubject = (subject: string) => {
-    const parts = subject.split(', ');
-    const parsed: Record<string, string> = {};
-    for (const part of parts) {
-      const [key, value] = part.split('=');
-      if (key && value) {
-        parsed[key] = value;
-      }
-    }
-    return parsed;
+  const isExpired = (notAfter: string) => {
+    return new Date() > new Date(notAfter);
   };
 
-  const getFieldLabel = (key: string) => {
-    const labels: Record<string, string> = {
-      'C': 'Quốc gia',
-      'ST': 'Tỉnh/Thành phố', 
-      'L': 'Địa phương',
-      'O': 'Tổ chức',
-      'OU': 'Đơn vị',
-      'CN': 'Tên đầy đủ',
-      'emailAddress': 'Email',
-      'E': 'Email',
-      'SERIALNUMBER': 'Số serial',
-      'GIVENNAME': 'Tên',
-      'SURNAME': 'Họ',
-      'TITLE': 'Chức vụ',
-      'STREET': 'Địa chỉ',
-      'POSTALCODE': 'Mã bưu điện',
-      'T': 'Chức danh',
-      'PC': 'Mã bưu điện'
-    };
-    return labels[key] || key;
+  const cleanVietnameseText = (text: string): string => {
+    if (!text) return text;
+    
+    try {
+      // Try to detect if this is a double-encoded text by checking for common patterns
+      if (text.includes('Ã') || text.includes('Æ') || text.includes('áº')) {
+        // This looks like UTF-8 bytes being interpreted as ISO-8859-1
+        // First encode as iso-8859-1, then decode as utf-8
+        const buffer = Buffer.from(text, 'binary');
+        const decoded = iconv.decode(buffer, 'utf8');
+        
+        return decoded;
+      }
+      
+      // If no encoding issues detected, return as-is
+      return text.trim();
+    } catch (error) {
+      console.warn('Failed to decode text:', error);
+      return text;
+    }
+  };
+
+  const toggleItem = (index: number) => {
+    setOpenItems(prev => 
+      prev.includes(index) 
+        ? prev.filter(i => i !== index)
+        : [...prev, index]
+    );
   };
 
   return (
@@ -207,71 +213,132 @@ export default function PDFSignatureChecker() {
           </CardContent>
         </Card>
 
-        {result && (
+        {result && result.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CheckCircle className="h-5 w-5 text-green-600" />
-                Thông tin Certificate
+                Thông tin Certificate ({result.flat().length} certificate{result.flat().length > 1 ? 's' : ''})
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Trạng thái:</span>
-                <Badge variant={result.expired ? "destructive" : "secondary"} 
-                       className={result.expired ? "" : "bg-green-100 text-green-800 hover:bg-green-200"}>
-                  {result.expired ? 'Đã hết hạn' : 'Còn hiệu lực'}
-                </Badge>
-              </div>
-
-              <div className="grid gap-4">
-                <div className="space-y-2">
-                  <h4 className="font-semibold flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Thông tin người ký
-                  </h4>
-                  <div className="bg-gray-50 p-3 rounded-lg space-y-2">
-                    {Object.entries(parseSubject(result.subject)).map(([key, value]) => (
-                      <div key={key} className="flex gap-2 text-sm">
-                        <span className="font-medium min-w-24">{getFieldLabel(key)}:</span>
-                        <span className="text-gray-700">{value}</span>
+            <CardContent className="space-y-4">
+              {result.flat().map((cert, index) => {
+                console.log(cert);
+                const isOpen = openItems.includes(index);
+                const certKey = `${cert.issuedBy?.commonName || 'unknown'}-${cert.validityPeriod?.notBefore || Date.now()}-${index}`;
+                
+                return (
+                  <Collapsible key={certKey} className="border border-gray-200 rounded-xl overflow-hidden transition-all duration-200 hover:shadow-sm">
+                    <CollapsibleTrigger 
+                      isOpen={isOpen}
+                      onClick={() => toggleItem(index)}
+                      className="flex items-center justify-between w-full p-4 hover:bg-gray-50 transition-colors duration-200 text-left focus:outline-none focus:bg-gray-100"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-medium">Certificate {index + 1}</span>
+                        <Badge variant={cert.validityPeriod?.notAfter && isExpired(cert.validityPeriod.notAfter) ? "destructive" : "secondary"} 
+                               className={cert.validityPeriod?.notAfter && isExpired(cert.validityPeriod.notAfter) ? "" : "bg-green-100 text-green-800"}>
+                          {cert.validityPeriod?.notAfter && isExpired(cert.validityPeriod.notAfter) ? 'Hết hạn' : 'Còn hiệu lực'}
+                        </Badge>
+                        <Badge variant="outline">
+                          {cert.clientCertificate ? 'Client' : 'Server'}
+                        </Badge>
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <h4 className="font-semibold flex items-center gap-2">
-                    <Building className="h-4 w-4" />
-                    Nhà phát hành (CA)
-                  </h4>
-                  <div className="bg-gray-50 p-3 rounded-lg space-y-2">
-                    {Object.entries(parseSubject(result.issuer)).map(([key, value]) => (
-                      <div key={key} className="flex gap-2 text-sm">
-                        <span className="font-medium min-w-24">{getFieldLabel(key)}:</span>
-                        <span className="text-gray-700">{value}</span>
+                      <div className="text-sm text-gray-600 mt-3">
+                        {cleanVietnameseText(cert.issuedTo?.commonName || cert.issuedTo?.organizationName || 'Certificate')}
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent isOpen={isOpen} className="border-t bg-gray-50">
+                      <div 
+                        id={`certificate-${index}`} 
+                        className="p-4 space-y-4"
+                      >
+                        <div className="grid gap-4">
+                          <div className="space-y-2">
+                            <h4 className="font-semibold flex items-center gap-2">
+                              <User className="h-4 w-4" />
+                              Thông tin người được cấp
+                            </h4>
+                            <div className="bg-white p-3 rounded-lg space-y-2">
+                              <div className="flex gap-2 text-sm">
+                                <span className="font-medium min-w-32">Quốc gia:</span>
+                                <span className="text-gray-700">{cert.issuedTo?.countryName || 'N/A'}</span>
+                              </div>
+                              {cert.issuedTo?.stateOrProvinceName && (
+                                <div className="flex gap-2 text-sm">
+                                  <span className="font-medium min-w-32">Tỉnh/Thành phố:</span>
+                                  <span className="text-gray-700">{cleanVietnameseText(cert.issuedTo.stateOrProvinceName)}</span>
+                                </div>
+                              )}
+                              {cert.issuedTo?.organizationName && (
+                                <div className="flex gap-2 text-sm">
+                                  <span className="font-medium min-w-32">Tổ chức:</span>
+                                  <span className="text-gray-700">{cleanVietnameseText(cert.issuedTo.organizationName)}</span>
+                                </div>
+                              )}
+                              {cert.issuedTo?.commonName && (
+                                <div className="flex gap-2 text-sm">
+                                  <span className="font-medium min-w-32">Tên đầy đủ:</span>
+                                  <span className="text-gray-700">{cleanVietnameseText(cert.issuedTo.commonName)}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
 
-                <div className="space-y-2">
-                  <h4 className="font-semibold flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    Thời hạn hiệu lực
-                  </h4>
-                  <div className="bg-gray-50 p-3 rounded-lg space-y-2">
-                    <div className="flex gap-2 text-sm">
-                      <span className="font-medium">Từ:</span>
-                      <span className="text-gray-700">{formatDate(result.validFrom.toString())}</span>
-                    </div>
-                    <div className="flex gap-2 text-sm">
-                      <span className="font-medium">Đến:</span>
-                      <span className="text-gray-700">{formatDate(result.validTo.toString())}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                          <div className="space-y-2">
+                            <h4 className="font-semibold flex items-center gap-2">
+                              <Building className="h-4 w-4" />
+                              Nhà phát hành (CA)
+                            </h4>
+                            <div className="bg-white p-3 rounded-lg space-y-2">
+                              <div className="flex gap-2 text-sm">
+                                <span className="font-medium min-w-32">Tên CA:</span>
+                                <span className="text-gray-700">{cleanVietnameseText(cert.issuedBy?.commonName || 'N/A')}</span>
+                              </div>
+                              <div className="flex gap-2 text-sm">
+                                <span className="font-medium min-w-32">Tổ chức:</span>
+                                <span className="text-gray-700">{cleanVietnameseText(cert.issuedBy?.organizationName || 'N/A')}</span>
+                              </div>
+                              <div className="flex gap-2 text-sm">
+                                <span className="font-medium min-w-32">Quốc gia:</span>
+                                <span className="text-gray-700">{cert.issuedBy?.countryName || 'N/A'}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <h4 className="font-semibold flex items-center gap-2">
+                              <Calendar className="h-4 w-4" />
+                              Thời hạn hiệu lực
+                            </h4>
+                            <div className="bg-white p-3 rounded-lg space-y-2">
+                              <div className="flex gap-2 text-sm">
+                                <span className="font-medium min-w-20">Từ:</span>
+                                <span className="text-gray-700">
+                                  {cert.validityPeriod?.notBefore ? formatDate(cert.validityPeriod.notBefore) : 'N/A'}
+                                </span>
+                              </div>
+                              <div className="flex gap-2 text-sm">
+                                <span className="font-medium min-w-20">Đến:</span>
+                                <span className="text-gray-700">
+                                  {cert.validityPeriod?.notAfter ? formatDate(cert.validityPeriod.notAfter) : 'N/A'}
+                                </span>
+                              </div>
+                              <div className="flex gap-2 text-sm">
+                                <span className="font-medium min-w-20">Trạng thái:</span>
+                                <Badge variant={cert.validityPeriod?.notAfter && isExpired(cert.validityPeriod.notAfter) ? "destructive" : "secondary"} 
+                                       className={cert.validityPeriod?.notAfter && isExpired(cert.validityPeriod.notAfter) ? "" : "bg-green-100 text-green-800"}>
+                                  {cert.validityPeriod?.notAfter && isExpired(cert.validityPeriod.notAfter) ? 'Hết hạn' : 'Còn hiệu lực'}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                );
+              })}
             </CardContent>
           </Card>
         )}
